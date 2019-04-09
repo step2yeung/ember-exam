@@ -137,6 +137,18 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
           if (typeof e === 'object' && e !== null && typeof e.message === 'string') {
             e.message = `EmberExam: Failed to get next test module: ${e.message}`;
           }
+
+          // throw an error to qunit, otherwise the error will only show up on
+          // browser's console log
+          this._qunit.module('EmberExam', function() {
+            this._qunit.test('Failed to get next test module', function(assert) {
+              assert.ok(
+                false,
+                `EmberExam: Failed to get next test module: ${e}`
+              );
+            });
+          });
+
           throw new Error(`EmberExam: Failed to get next test module: ${e}`);
         });
     };

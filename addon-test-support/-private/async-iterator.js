@@ -15,8 +15,9 @@ export default class AsyncIterator {
     this._boundHandleResponse = this.handleResponse.bind(this);
     this._waiting = false;
     // Set a timeout value from either url parameter or default timeout value, 15 s.
-    this._timeout = options.timeout || 15;
+    this._timeout = options.timeout || 5;
     this._browserId = options.browserId;
+    this._retry = 0;
 
     testem.on(this._response, this._boundHandleResponse);
   }
@@ -40,17 +41,27 @@ export default class AsyncIterator {
    * @param {*} response
    */
   handleResponse(response) {
-    if (this._waiting === false) {
-      throw new Error(
-        `${this.toString()} Was not expecting a response, but got a response`
-      );
-    } else {
-      this._waiting = false;
+    if(this._retry > 1) {
+      console.log(`Got a response:`)
+      console.log(response);
+      console.log(`state:`)
+      console.log(this);
     }
+    // if (this._waiting === false) {
+    //   throw new Error(
+    //     `${this.toString()} Was not expecting a response, but got a response:`
+    //   );
+    // } else {
+      this._waiting = false;
+    // }
 
     try {
       if (response.done) {
         this.dispose();
+      }
+
+      if(this._retry > 1) {
+        throw new Error('retry works!');
       }
       this._current.resolve(response);
     } catch (e) {
@@ -83,6 +94,10 @@ export default class AsyncIterator {
   _makeNextRequest() {
     this._waiting = true;
     this._testem.emit(this._request, this._browserId);
+    if (this._retry > 0) {
+      console.log(`emitting retry requests for ${this._request} for browserId:${this._browserId}`)
+      console.log(`set this._waiting = ${this._waiting}`);
+    }
   }
 
   /**
@@ -96,12 +111,24 @@ export default class AsyncIterator {
       if (!this._waiting) {
         return;
       }
-      let err = new Error(
-        `EmberExam: Promise timed out after ${
-          this._timeout
-        } s while waiting for response for ${this._request}`
-      );
-      reject(err);
+      console.log(`EmberExam: Promise timed out after ${
+        this._timeout
+      } s while waiting for response for ${this._request}`);
+      this._retry += 1;
+      this._timeout += 2;
+
+      if (this._retry > 3) {
+        let err = new Error(
+          `EmberExam: Promise timed out after ${
+            this._timeout
+          } s while waiting for response for ${this._request}`
+        );
+        reject(err);
+      } else {
+        console.log('retrying request');
+        this._current = null;
+        this.next();
+      }
     }, this._timeout * 1000);
   }
 
@@ -118,6 +145,9 @@ export default class AsyncIterator {
     if (this._current) {
       return this._current.promise;
     }
+    if (this._retry > 0) {
+      console.log(`calling next()`);
+    }
 
     let resolve, reject;
     let promise = new Promise((_resolve, _reject) => {
@@ -131,7 +161,6 @@ export default class AsyncIterator {
       reject,
       promise
     };
-
     this._makeNextRequest();
 
     return promise;
