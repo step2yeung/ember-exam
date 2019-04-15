@@ -128,26 +128,41 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
             const moduleName = response.value;
             this.loadIndividualModule(moduleName);
 
+            if (this.retry > 0){
+              throw new Error(
+                'Ember-Exam retry actuall worked!!!!!!!!!'
+              );
+            }
             // if no tests were added, request the next module
             if (this._qunit.config.queue.length === 0) {
               return nextModuleHandler();
             }
           }
         }).catch(e => {
+          console.log('asyncIterator promise rejected')
+          if (!this.retry) {
+            this.retry = 0;
+          }
+          this.retry += 1;
+          if (this.retry <= 2) {
+            console.log('retrying nextModuleHandler()')
+            return nextModuleHandler();
+          }
+
           if (typeof e === 'object' && e !== null && typeof e.message === 'string') {
             e.message = `EmberExam: Failed to get next test module: ${e.message}`;
           }
 
           // throw an error to qunit, otherwise the error will only show up on
           // browser's console log
-          this._qunit.module('EmberExam', function() {
-            this._qunit.test('Failed to get next test module', function(assert) {
-              assert.ok(
-                false,
-                `EmberExam: Failed to get next test module: ${e}`
-              );
-            });
-          });
+          // this._qunit.module('EmberExam', function() {
+          //   this._qunit.test('Failed to get next test module', function(assert) {
+          //     assert.ok(
+          //       false,
+          //       `EmberExam: Failed to get next test module: ${e}`
+          //     );
+          //   });
+          // });
 
           throw new Error(`EmberExam: Failed to get next test module: ${e}`);
         });

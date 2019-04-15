@@ -41,12 +41,8 @@ export default class AsyncIterator {
    * @param {*} response
    */
   handleResponse(response) {
-    if(this._retry > 1) {
-      console.log(`Got a response:`)
-      console.log(response);
-      console.log(`state:`)
-      console.log(this);
-    }
+    console.log('[asyncIterator] got a response!')
+    console.log(response)
     // if (this._waiting === false) {
     //   throw new Error(
     //     `${this.toString()} Was not expecting a response, but got a response:`
@@ -94,10 +90,7 @@ export default class AsyncIterator {
   _makeNextRequest() {
     this._waiting = true;
     this._testem.emit(this._request, this._browserId);
-    if (this._retry > 0) {
-      console.log(`emitting retry requests for ${this._request} for browserId:${this._browserId}`)
-      console.log(`set this._waiting = ${this._waiting}`);
-    }
+    console.log('[asyncIterator] makeNextRequest, with waiting = true');
   }
 
   /**
@@ -111,24 +104,18 @@ export default class AsyncIterator {
       if (!this._waiting) {
         return;
       }
-      console.log(`EmberExam: Promise timed out after ${
+      this._current = null;
+      console.log( `EmberExam: Promise timed out after ${
         this._timeout
       } s while waiting for response for ${this._request}`);
-      this._retry += 1;
-      this._timeout += 2;
+      console.log('rejecting the promise');
+      let err = new Error(
+        `EmberExam: Promise timed out after ${
+          this._timeout
+        } s while waiting for response for ${this._request}`
+      );
+      reject(err);
 
-      if (this._retry > 3) {
-        let err = new Error(
-          `EmberExam: Promise timed out after ${
-            this._timeout
-          } s while waiting for response for ${this._request}`
-        );
-        reject(err);
-      } else {
-        console.log('retrying request');
-        this._current = null;
-        this.next();
-      }
     }, this._timeout * 1000);
   }
 
@@ -144,9 +131,6 @@ export default class AsyncIterator {
     }
     if (this._current) {
       return this._current.promise;
-    }
-    if (this._retry > 0) {
-      console.log(`calling next()`);
     }
 
     let resolve, reject;
