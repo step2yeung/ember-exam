@@ -17,9 +17,8 @@ export default class AsyncIterator {
     this._boundHandleResponse = this.handleResponse.bind(this);
     this._waiting = false;
     // Set a timeout value from either url parameter or default timeout value, 15 s.
-    this._timeout = options.timeout || 15;
+    this._timeout = options.timeout || 5;
     this._browserId = options.browserId;
-    this._emberExamExitOnError = options.emberExamExitOnError;
 
     testem.on(this._response, this._boundHandleResponse);
   }
@@ -100,20 +99,13 @@ export default class AsyncIterator {
         return;
       }
 
-      if (this._emberExamExitOnError) {
-        let err = new Error(
-          `EmberExam: Promise timed out after ${
-            this._timeout
-          } s while waiting for response for ${this._request}`
-        );
-        reject(err);
-      } else {
-        // eslint-disable-next-line no-console
-        console.error(`EmberExam: Promise timed out after ${
+      let err = new Error(
+        `EmberExam: Promise timed out after ${
           this._timeout
-        } s while waiting for response for ${this._request}. Closing browser to exit gracefully.`);
-        resolve(iteratorCompleteResponse);
-      }
+        } s while waiting for response for ${this._request}`
+      );
+      this._current = null;
+      reject(err);
     }, this._timeout * 1000);
   }
 

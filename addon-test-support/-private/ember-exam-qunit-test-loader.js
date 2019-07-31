@@ -20,6 +20,7 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
     this._testem = testem;
     this._qunit = qunit;
     this._urlParams = urlParams || getUrlParams();
+    this.retryLimit = 3;
   }
 
   get urlParams() {
@@ -129,8 +130,9 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
       response: 'testem:next-module-response',
       timeout: this._urlParams.get('asyncTimeout'),
       browserId: this._urlParams.get('browser'),
-      emberExamExitOnError: this._urlParams.get('_emberExamExitOnError'),
     });
+    const exitOnError = this._urlParams.get('_emberExamExitOnError');
+    let retryCount = 0;
 
     const nextModuleHandler = () => {
       return nextModuleAsyncIterator
@@ -144,12 +146,31 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
             if (this._qunit.config.queue.length === 0) {
               return nextModuleHandler();
             }
+            // reset the retry count
+            retryCount = 0;
           }
         }).catch(e => {
           if (typeof e === 'object' && e !== null && typeof e.message === 'string') {
             e.message = `EmberExam: Failed to get next test module: ${e.message}`;
           }
-          throw new Error(`EmberExam: Failed to get next test module: ${e}`);
+
+          // if retry limit has been reached
+          if (retryCount >= this.retryLimit) {
+            if (exitOnError) {
+              throw new Error(`EmberExam: Failed to get next test module after ${this.retryLimit} retries: ${e}`);
+            }
+
+            // eslint-disable-next-line no-console
+            console.error(`EmberExam: Promise timed out after ${
+              this._urlParams.get('asyncTimeout')
+            } s while waiting for response for testem:next-module-request. Closing browser to exit gracefully.`);
+          } else {
+            retryCount++;
+
+            // eslint-disable-next-line no-console
+            console.log('Failed to get next test module. Retrying.')
+            return nextModuleHandler();
+          }
         });
     };
 
