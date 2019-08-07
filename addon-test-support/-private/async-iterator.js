@@ -43,8 +43,9 @@ export default class AsyncIterator {
    */
   handleResponse(response) {
     if (this._waiting === false) {
+      console.log(`${this.toString()} Was not expecting a response, but got a response:\n${response}`);
       throw new Error(
-        `${this.toString()} Was not expecting a response, but got a response`
+        `${this.toString()} Was not expecting a response, but got a response:\n${response}`
       );
     } else {
       this._waiting = false;
