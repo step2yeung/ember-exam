@@ -16,8 +16,8 @@ export default class AsyncIterator {
     this._current = null;
     this._boundHandleResponse = this.handleResponse.bind(this);
     this._waiting = false;
-    // Set a timeout value from either url parameter or default timeout value, 15 s.
-    this._timeout = options.timeout || 5;
+    // Set a timeout value from either url parameter or default timeout value, 20 s.
+    this._timeout = options.timeout || 20;
     this._browserId = options.browserId;
 
     testem.on(this._response, this._boundHandleResponse);
@@ -42,6 +42,7 @@ export default class AsyncIterator {
    * @param {*} response
    */
   handleResponse(response) {
+    console.log(`[${location.search}] received ${response}`);
     if (this._waiting === false) {
       console.log(`${this.toString()} Was not expecting a response, but got a response:\n${response}`);
       throw new Error(
@@ -117,10 +118,12 @@ export default class AsyncIterator {
    * @return {Promise}
    */
   next() {
+    console.log(`[${location.search}] calling async-iterator next()`);
     if (this._done) {
       return Promise.resolve(iteratorCompleteResponse);
     }
     if (this._current) {
+      console.log(`[${location.search}] current promise exists, returning current promise`);
       return this._current.promise;
     }
 
@@ -136,7 +139,7 @@ export default class AsyncIterator {
       reject,
       promise
     };
-
+    console.log(`[${location.search}] make ${this.request}`);
     this._makeNextRequest();
 
     return promise;
