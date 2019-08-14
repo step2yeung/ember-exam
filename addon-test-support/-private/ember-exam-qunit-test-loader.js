@@ -7,6 +7,26 @@ import AsyncIterator from './async-iterator';
 import QUnit from 'qunit';
 
 /**
+ * Return partitions as an array of values
+ */
+function getPartitions(partitions) {
+  if (partitions === undefined) {
+    return [1];
+  } else if (!Array.isArray(partitions)) {
+    return [partitions];
+  }
+  return partitions;
+}
+
+/**
+ * Return split as a number
+ */
+function getSplit(splitInput) {
+  const split = parseInt(splitInput, 10);
+  return isNaN(split) ? 1 : split;
+}
+
+/**
  * EmberExamQUnitTestLoader allows delayed requiring of test modules to enable test load balancing
  * It extends ember-qunit/test-loader used by `ember test`, since it overrides moduleLoadFailure()
  * to log a test failure when a module fails to load
@@ -20,6 +40,7 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
     this._testem = testem;
     this._qunit = qunit;
     this._urlParams = urlParams || getUrlParams();
+    this.retryLimit = 3;
   }
 
   get urlParams() {
@@ -57,16 +78,8 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
     const browserId = this._urlParams.get('browser');
     const modulePath = this._urlParams.get('modulePath');
     const filePath = this._urlParams.get('filePath');
-    let partitions = this._urlParams.get('partition');
-    let split = parseInt(this._urlParams.get('split'), 10);
-
-    split = isNaN(split) ? 1 : split;
-
-    if (partitions === undefined) {
-      partitions = [1];
-    } else if (!Array.isArray(partitions)) {
-      partitions = [partitions];
-    }
+    const partitions = getPartitions(this._urlParams.get('partition'));
+    const split = getSplit(this._urlParams.get('split'));
 
     super.loadModules();
 
@@ -129,28 +142,55 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
       response: 'testem:next-module-response',
       timeout: this._urlParams.get('asyncTimeout'),
       browserId: this._urlParams.get('browser'),
-      emberExamExitOnError: this._urlParams.get('_emberExamExitOnError'),
     });
+    const exitOnError = this._urlParams.get('_emberExamExitOnError');
+    let retryCount = 0;
+
+    const nextModuleResolveHandler = response => {
+      if (!response.done) {
+        const moduleName = response.value;
+        this.loadIndividualModule(moduleName);
+
+        // if no tests were added, request the next module
+        if (this._qunit.config.queue.length === 0) {
+          return nextModuleHandler();
+        }
+        // reset the retry count
+        retryCount = 0;
+      }
+    };
+
+    const nextModuleRejectHandler = e => {
+      if (typeof e === 'object' && e !== null && typeof e.message === 'string') {
+        e.message = `EmberExam: Failed to get next test module: ${e.message}`;
+      }
+
+      // if retry limit has been reached
+      if (retryCount >= this.retryLimit) {
+        if (exitOnError) {
+          throw new Error(`EmberExam: Failed to get next test module after ${this.retryLimit} retries: ${e}`);
+        }
+
+        // eslint-disable-next-line no-console
+        console.error(`EmberExam: Failed to get next test module after ${
+          this.retryLimit
+        } retries: ${e}. Closing browser to exit gracefully.`);
+      } else {
+        retryCount++;
+
+        // eslint-disable-next-line no-console
+        console.log(`EmberExam: Promise timed out after ${
+          this._urlParams.get('asyncTimeout')
+        } s while waiting for response for testem:next-module-request. Retrying.`)
+        return nextModuleHandler();
+      }
+    };
 
     const nextModuleHandler = () => {
       return nextModuleAsyncIterator
         .next()
-        .then((response) => {
-          if (!response.done) {
-            const moduleName = response.value;
-            this.loadIndividualModule(moduleName);
-
-            // if no tests were added, request the next module
-            if (this._qunit.config.queue.length === 0) {
-              return nextModuleHandler();
-            }
-          }
-        }).catch(e => {
-          if (typeof e === 'object' && e !== null && typeof e.message === 'string') {
-            e.message = `EmberExam: Failed to get next test module: ${e.message}`;
-          }
-          throw new Error(`EmberExam: Failed to get next test module: ${e}`);
-        });
+        .then(nextModuleResolveHandler)
+        .catch(nextModuleRejectHandler);
     };
 
     // it registers qunit begin callback to ask for a next test moudle to execute when the test suite begins.

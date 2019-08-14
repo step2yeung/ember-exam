@@ -19,7 +19,6 @@ export default class AsyncIterator {
     // Set a timeout value from either url parameter or default timeout value, 15 s.
     this._timeout = options.timeout || 15;
     this._browserId = options.browserId;
-    this._emberExamExitOnError = options.emberExamExitOnError;
 
     testem.on(this._response, this._boundHandleResponse);
   }
@@ -45,7 +44,7 @@ export default class AsyncIterator {
   handleResponse(response) {
     if (this._waiting === false) {
       throw new Error(
-        `${this.toString()} Was not expecting a response, but got a response`
+        `${this.toString()} Was not expecting a response, but got a response:\n${JSON.stringify(response)}`
       );
     } else {
       this._waiting = false;
@@ -100,20 +99,14 @@ export default class AsyncIterator {
         return;
       }
 
-      if (this._emberExamExitOnError) {
-        let err = new Error(
-          `EmberExam: Promise timed out after ${
-            this._timeout
-          } s while waiting for response for ${this._request}`
-        );
-        reject(err);
-      } else {
-        // eslint-disable-next-line no-console
-        console.error(`EmberExam: Promise timed out after ${
+      let err = new Error(
+        `EmberExam: Promise timed out after ${
           this._timeout
-        } s while waiting for response for ${this._request}. Closing browser to exit gracefully.`);
-        resolve(iteratorCompleteResponse);
-      }
+        } s while waiting for response for ${this._request}`
+      );
+      this._current = null;
+      this._waiting = false;
+      reject(err);
     }, this._timeout * 1000);
   }
 
@@ -143,7 +136,6 @@ export default class AsyncIterator {
       reject,
       promise
     };
-
     this._makeNextRequest();
 
     return promise;
