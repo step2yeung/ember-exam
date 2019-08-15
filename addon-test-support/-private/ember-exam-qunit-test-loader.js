@@ -149,10 +149,12 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
     const nextModuleResolveHandler = response => {
       if (!response.done) {
         const moduleName = response.value;
+        console.log(`EmberExam: nextModuleResolveHandler called. Load ${moduleName}`);
         this.loadIndividualModule(moduleName);
 
         // if no tests were added, request the next module
         if (this._qunit.config.queue.length === 0) {
+          console.log(`EmberExam: no tests added from ${moduleName}`);
           return nextModuleHandler();
         }
         // reset the retry count
@@ -187,6 +189,7 @@ export default class EmberExamQUnitTestLoader extends TestLoader {
     };
 
     const nextModuleHandler = () => {
+      console.log('EmberExam: nextModuleHandler called');
       return nextModuleAsyncIterator
         .next()
         .then(nextModuleResolveHandler)
